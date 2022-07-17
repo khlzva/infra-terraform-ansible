@@ -1,0 +1,60 @@
+---
+- name: Set password
+  user:
+    name: admin
+    state: present
+    password: "{{ password | password_hash('sha512') }}"
+    
+- name: Add servers hostnames
+  blockinfile:
+    path: /etc/hosts
+    block: |
+      192.168.10.101 bastion
+      192.168.11.101 web1
+      192.168.12.101 web2
+      192.168.11.102 prometheus
+      192.168.10.102 grafana
+      192.168.11.103 elasticsearch
+      192.168.10.103 kibana
+
+- name: Add SSH default user to bastion
+  blockinfile:
+    path: /etc/ssh/config
+    block: |
+      HOST web1
+          USER admin
+      HOST web2
+          USER admin
+      HOST prometheus
+          USER admin
+      HOST grafana
+          USER admin
+      HOST elasticsearch
+          USER admin
+      HOST kibana
+          USER admin
+    when: ansible_host == "<bastion_ip>"
+
+- name: SSH connection only from bastion
+  lineinfile:
+    path: "{{ item.path }}"
+    line: "{{ item.line }}"
+  with_items:
+    - { path: /etc/hosts.deny , line: "sshd: ALL"}
+    - { path: /etc/hosts.allow , line: "sshd: 192.168.10.101"}
+  when: ansible_host != "<bastion_ip>"
+
+- name: Change ssh config PubkeyAuthentication
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  with_items:
+    - { regexp: '^PubkeyAuthentication' , line: "PubkeyAuthentication yes" }
+    - { regexp: '^PasswordAuthentication' , line: "PasswordAuthentication yes" }
+    - { regexp: '^Port' , line: Port 22 }
+
+- name: Restart SSH
+  service:
+    name: sshd
+    state: restarted

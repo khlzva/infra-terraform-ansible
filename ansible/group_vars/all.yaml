@@ -1,0 +1,7 @@
+ssh_remote_user: admin
+ssh_strict_host_key_checking: "no"
+private_key_file: /path/to/private/key
+
+pwd: /path/to/infra-terraform-ansible
+infra_folder: /path/to/folder/with/packages
+password: <password>

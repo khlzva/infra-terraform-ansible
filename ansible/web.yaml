@@ -1,0 +1,134 @@
+---
+- name: NGINX web-server
+  hosts: web
+  become: yes
+
+  environment:
+    HTTP_PROXY: http://bastion:3128
+    HTTPS_PROXY: http://bastion:3128
+  
+  tasks:
+  - include_tasks: setup/setup.yaml
+  - include_tasks: setup/proxy.yaml
+  - include_tasks: setup/upgrade.yaml
+
+  - name: Download Node Exporter and Nginx Log Exporter
+    get_url:
+      url: "{{ item }}"
+      dest: /home/admin/
+      use_proxy: yes 
+    with_items:
+      - https://github.com/prometheus/node_exporter/releases/download/v1.3.1/node_exporter-1.3.1.linux-amd64.tar.gz
+      - https://github.com/martin-helmich/prometheus-nginxlog-exporter/releases/download/v1.9.2/prometheus-nginxlog-exporter_1.9.2_linux_amd64.deb
+
+  - name: Download Filebeat
+    copy:
+      src: "{{ infra_folder }}/filebeat-8.1.3-amd64.deb"
+      dest: /home/admin/
+
+  - name: Install NGINX
+    apt:
+      name: nginx
+      state: latest
+
+  - name: Stop NGINX service
+    service:
+      name: nginx
+      state: stopped
+
+  - name: Delete nginx.conf
+    file:
+      state: absent
+      path: /etc/nginx/nginx.conf
+
+  - name: Config file for nginx
+    copy:
+      src: "{{ pwd }}/ansible/configs/nginx.conf"
+      dest: /etc/nginx/nginx.conf
+
+  - name: Enable nginx service
+    service:
+      name: nginx
+      state: started
+      enabled: yes
+
+  - name: chmod /var/log/nginx/access.log
+    command: chmod go=rw /var/log/nginx/access.log
+
+  - name: Unarchive Node Exporter
+    unarchive:
+      src: /home/admin/node_exporter-1.3.1.linux-amd64.tar.gz
+      dest: /home/admin/
+      remote_src: yes
+
+  - name: Add node-exporter.service
+    blockinfile:
+      dest: /etc/systemd/system/node-exporter.service
+      block: |
+        [Unit]
+        Description=Node Exporter
+        After=network.target
+        [Service]
+        User=admin
+        Group=admin
+        Type=simple
+        ExecStart=/usr/local/bin/node_exporter
+        [Install]
+        WantedBy=multi-user.target
+      create: yes
+
+  - name: Copy file with node-exporter
+    copy:
+      src: /home/admin/node_exporter-1.3.1.linux-amd64/node_exporter
+      dest: /usr/local/bin/
+      remote_src: yes
+
+  - name: chmod /usr/local/bin/node_exporter
+    command: chmod -c -R ugo=rwx /usr/local/bin/node_exporter
+
+  - name: Daemon-reload
+    command: systemctl daemon-reload
+
+  - name: Start node-exporter.service
+    service:
+      name: node-exporter
+      state: started
+      enabled: yes
+
+  - name: Install Nginx Log Exporter
+    command: apt install ./prometheus-nginxlog-exporter_1.9.2_linux_amd64.deb
+    register: packages
+
+  - name: Start Nginx Log Exporter service
+    service:
+      name: prometheus-nginxlog-exporter
+      state: started
+      enabled: yes
+
+  - name: Install Filebeat
+    shell: dpkg -i filebeat-8.1.3-amd64.deb
+    register: packages
+
+  - name: Rename default Filebeat yml and
+    copy:
+      src: /etc/filebeat/filebeat.yml
+      dest: /etc/filebeat/filebeat-default.yml
+      remote_src: yes
+
+  - name: Config file for Filebeat
+    copy:
+      src: "{{ pwd }}/ansible/configs/filebeat.yml"
+      dest: /etc/filebeat/filebeat.yml
+
+  - name: Load Filebeat template to elasticsearch
+    command: |
+      sudo filebeat setup \
+      --index-management -E output.logstash.enabled=false \
+      -E 'output.elasticsearch.hosts=["192.168.11.103:9200"]'
+    run_once: true
+  
+  - name: Enable Filebeat
+    service:
+      name: filebeat
+      state: started
+      enabled: yes

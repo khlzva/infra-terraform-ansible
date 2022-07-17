@@ -1,0 +1,38 @@
+---
+- name: Configure bastion host
+  hosts: bastion
+  become: yes
+
+  tasks:
+  - include_tasks: setup/setup.yaml
+  - include_tasks: setup/upgrade.yaml
+
+  - name: Install Squid
+    apt:
+      name: squid
+      state: latest
+
+  - name: Stop Squid service
+    service:
+      name: squid
+      state: stopped
+  
+  - name: Rename default Squid conf
+    copy:
+      src: /etc/squid/squid.conf
+      dest: /etc/squid/squid-default.conf
+      remote_src: yes
+
+  - name: Config file for Squid
+    copy:
+      src: "{{ pwd }}/ansible/configs/squid.conf"
+      dest: /etc/squid/squid.conf
+
+  - name: Enable Squid service
+    service:
+      name: squid
+      state: started
+      enabled: yes
+
+  - include_tasks: setup/install-yc.yaml
+  - include_tasks: setup/cron.yaml

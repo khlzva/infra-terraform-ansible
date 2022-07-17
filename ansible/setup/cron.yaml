@@ -1,0 +1,23 @@
+---
+- name: Copy cronjob script
+  copy: 
+    src: "{{ pwd }}/ansible/setup/yc-scripts/snapshots.sh"
+    dest: /home/admin/snapshots.sh
+    mode: a+x
+  become: no
+
+- name: Create an entry "PATH=<yc>"
+  ansible.builtin.cron:
+    env: yes
+    name: PATH
+    job: /home/admin/yandex-cloud/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  become: no
+  
+- name: "Set snapshots cronjob"
+  cron:
+    name: "Disks snapshots"
+    state: present
+    minute: "*/10"
+    hour: "*"
+    job: "/home/admin/snapshots.sh"
+  become: no

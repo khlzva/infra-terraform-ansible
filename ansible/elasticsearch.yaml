@@ -1,0 +1,53 @@
+---
+- name: Install and configure Elasticsearch and Logstash
+  hosts: elasticsearch
+  become: yes
+
+  tasks:
+  - include_tasks: setup/setup.yaml
+  - include_tasks: setup/proxy.yaml
+  - include_tasks: setup/upgrade.yaml
+  - include_tasks: setup/install-java.yaml
+
+  - name: Download Elasticsearch and Logstash
+    copy:
+      src: "{{ item }}"
+      dest: /home/admin/
+    with_items:
+      - "{{ infra_folder }}/elasticsearch-8.1.3-amd64.deb"
+      - "{{ infra_folder }}/logstash-8.1.3-amd64.deb"
+    
+  - name: Install Elasticsearch and Logstash
+    shell: "{{ item }}"
+    register: packages
+    with_items:
+      - dpkg -i elasticsearch-8.1.3-amd64.deb
+      - dpkg -i logstash-8.1.3-amd64.deb
+
+  - name: Daemon-reload
+    command: systemctl daemon-reload
+
+  - name: Rename default Elasticsearch yml
+    copy:
+      src: /etc/elasticsearch/elasticsearch.yml
+      dest: /etc/elasticsearch/elasticsearch-default.yml
+      remote_src: true
+
+  - name: Config files for Elasticsearch and Logstash
+    copy:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+    with_items:
+      - { src: "{{ pwd }}/ansible/configs/elasticsearch.yml" , dest: /etc/elasticsearch/elasticsearch.yml }
+      - { src: "{{ pwd }}/ansible/configs/logstash/beats-input.conf" , dest: /etc/logstash/conf.d/beats-input.conf }
+      - { src: "{{ pwd }}/ansible/configs/logstash/syslogs-input.conf" , dest: /etc/logstash/conf.d/syslogs-input.conf }
+      - { src: "{{ pwd }}/ansible/configs/logstash/elasticsearch-output.conf" , dest: /etc/logstash/conf.d/elasticsearch-output.conf }
+
+  - name: Enable Elasticsearch and Logstash services
+    service:
+      name: "{{ item }}"
+      state: started
+      enabled: yes
+    with_items:
+      - elasticsearch
+      - logstash

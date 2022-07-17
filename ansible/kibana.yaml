@@ -1,0 +1,38 @@
+---
+- name: Install and configure Kibana
+  hosts: kibana
+  become: yes
+
+  tasks:
+  - include_tasks: setup/setup.yaml
+  - include_tasks: setup/upgrade.yaml
+  - include_tasks: setup/install-java.yaml
+
+  - name: Download Kibana from bastion
+    copy:
+      src: "{{ infra_folder }}/kibana-8.1.3-amd64.deb"
+      dest: /home/admin/
+
+  - name: Install Kibana
+    shell: dpkg -i kibana-8.1.3-amd64.deb
+    register: packages
+
+  - name: Daemon-reload
+    command: systemctl daemon-reload
+
+  - name: Rename default Kibana yml
+    copy:
+      src: /etc/kibana/kibana.yml
+      dest:  /etc/kibana/kibana-default.yml
+      remote_src: true
+
+  - name: Config file for Kibana
+    copy:
+      src: "{{ pwd }}/ansible/configs/kibana.yml"
+      dest: /etc/kibana/kibana.yml
+
+  - name: Enable Kibana service
+    service:
+      name: kibana
+      state: started
+      enabled: yes

@@ -1,0 +1,10 @@
+---
+- name: Install yc
+  script: "{{ pwd }}/ansible/setup/yc-scripts/yc-install.sh"
+  become: no
+
+- name: Configure yc profile
+  script: "{{ pwd }}/ansible/setup/yc-scripts/yc-config.sh"
+  become: no
+  environment:
+    PATH: "/home/admin/yandex-cloud/bin"

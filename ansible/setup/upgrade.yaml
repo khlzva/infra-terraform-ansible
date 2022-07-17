@@ -1,0 +1,11 @@
+---
+- name: Update
+  command: apt-get update -y --allow-releaseinfo-change
+
+- name: apt fix-broken
+  command: apt-get --fix-broken install -y 
+
+- name: Upgrade
+  apt:
+    upgrade: dist
+    force_apt_get: yes
