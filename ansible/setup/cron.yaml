@@ -17,7 +17,7 @@
   cron:
     name: "Disks snapshots"
     state: present
-    minute: "*"
+    minute: "0"
     hour: "22"
     job: "/home/admin/snapshots.sh"
   become: no
